@@ -8,10 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
-import java.util.UUID;
-
 public record CreateOrderRequest(
-        @NotNull UUID userId,
         @NotBlank @Size(max = 255) String productName,
         @NotNull @Min(1) Integer quantity,
         @NotNull @DecimalMin(value = "0.01") @Digits(integer = 17, fraction = 2) BigDecimal unitPrice

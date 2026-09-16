@@ -30,14 +30,13 @@ class OrderServiceTest {
         OrderService orderService = new OrderService(orderRepository);
         UUID userId = UUID.randomUUID();
         CreateOrderRequest request = new CreateOrderRequest(
-                userId,
                 "Mechanical Keyboard",
                 3,
                 new BigDecimal("49.95")
         );
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        OrderResponse response = orderService.createOrder(request);
+        OrderResponse response = orderService.createOrder(userId, request);
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository).save(orderCaptor.capture());

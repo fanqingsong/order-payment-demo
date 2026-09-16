@@ -25,12 +25,12 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(CreateOrderRequest request) {
+    public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
         BigDecimal totalAmount = request.unitPrice().multiply(BigDecimal.valueOf(request.quantity()));
         Instant now = Instant.now();
 
         Order order = new Order(
-                request.userId(),
+                userId,
                 request.productName(),
                 request.quantity(),
                 request.unitPrice(),
