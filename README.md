@@ -49,3 +49,27 @@ psql -h localhost -p 5432 -U postgres -d order_db
 - Mode: single-node KRaft (no ZooKeeper)
 
 Kafka data is retained in the `kafka_data` Docker volume.
+
+### Inspecting order-created events
+
+The Order Service creates and publishes JSON events to the `order-created` topic. Start Kafka and the Order Service, then describe the topic with:
+
+```bash
+docker exec order-payment-kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --topic order-created
+```
+
+Consume existing and new messages while printing each order ID message key:
+
+```bash
+docker exec -it order-payment-kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic order-created \
+  --from-beginning \
+  --property print.key=true \
+  --property key.separator=" | "
+```
+
+Keep the consumer running and create an order through the frontend or `POST /api/orders`. You should see the order UUID key followed by a JSON `OrderCreated` event containing `eventId`, `eventVersion`, `occurredAt`, `orderId`, `userId`, and `amount`.

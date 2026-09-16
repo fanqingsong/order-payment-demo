@@ -4,7 +4,9 @@ import com.example.orderservice.dto.CreateOrderRequest;
 import com.example.orderservice.dto.OrderResponse;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderStatus;
+import com.example.orderservice.event.OrderCreatedEvent;
 import com.example.orderservice.exception.OrderNotFoundException;
+import com.example.orderservice.messaging.OrderEventPublisher;
 import com.example.orderservice.repository.OrderRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -19,9 +21,11 @@ import java.util.UUID;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderEventPublisher orderEventPublisher;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, OrderEventPublisher orderEventPublisher) {
         this.orderRepository = orderRepository;
+        this.orderEventPublisher = orderEventPublisher;
     }
 
     @Transactional
@@ -40,7 +44,18 @@ public class OrderService {
                 now
         );
 
-        return toResponse(orderRepository.save(order));
+        Order savedOrder = orderRepository.save(order);
+        OrderCreatedEvent event = new OrderCreatedEvent(
+                UUID.randomUUID(),
+                "OrderCreated",
+                1,
+                Instant.now(),
+                savedOrder.getId(),
+                savedOrder.getUserId(),
+                savedOrder.getTotalAmount()
+        );
+        orderEventPublisher.publishOrderCreated(event);
+        return toResponse(savedOrder);
     }
 
     @Transactional(readOnly = true)
