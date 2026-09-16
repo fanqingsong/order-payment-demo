@@ -1,0 +1,36 @@
+.app-header {
+  align-items: center;
+  background: #1f2937;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem max(1rem, calc((100% - 960px) / 2));
+}
+
+.app-header a {
+  color: white;
+  text-decoration: none;
+}
+
+.brand {
+  font-weight: 700;
+}
+
+nav {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+
+nav button {
+  background: transparent;
+  border-color: #d1d5db;
+  color: white;
+  padding: 0.35rem 0.65rem;
+}
+
+.page-shell {
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 2rem 1rem;
+}

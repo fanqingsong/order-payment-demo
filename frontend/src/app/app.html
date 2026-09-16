@@ -1,0 +1,18 @@
+<header class="app-header">
+  <a class="brand" routerLink="/orders">Order Payment Demo</a>
+  <nav>
+    @if (auth.isAuthenticated()) {
+      <a routerLink="/orders">Orders</a>
+      <a routerLink="/orders/new">New order</a>
+      <span>{{ auth.user()?.email }}</span>
+      <button type="button" (click)="logout()">Log out</button>
+    } @else {
+      <a routerLink="/login">Log in</a>
+      <a routerLink="/register">Register</a>
+    }
+  </nav>
+</header>
+
+<main class="page-shell">
+  <router-outlet />
+</main>
