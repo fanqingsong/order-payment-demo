@@ -4,9 +4,10 @@ import com.example.orderservice.dto.CreateOrderRequest;
 import com.example.orderservice.dto.OrderResponse;
 import com.example.orderservice.entity.Order;
 import com.example.orderservice.entity.OrderStatus;
+import com.example.orderservice.entity.OutboxEvent;
 import com.example.orderservice.event.OrderCreatedEvent;
 import com.example.orderservice.exception.OrderNotFoundException;
-import com.example.orderservice.messaging.OrderEventPublisher;
+import com.example.orderservice.repository.OutboxEventRepository;
 import com.example.orderservice.repository.OrderRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -16,16 +17,23 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final OrderEventPublisher orderEventPublisher;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
-    public OrderService(OrderRepository orderRepository, OrderEventPublisher orderEventPublisher) {
+    public OrderService(
+            OrderRepository orderRepository,
+            OutboxEventRepository outboxEventRepository,
+            ObjectMapper objectMapper
+    ) {
         this.orderRepository = orderRepository;
-        this.orderEventPublisher = orderEventPublisher;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -55,23 +63,37 @@ public class OrderService {
                 savedOrder.getProductName(),
                 savedOrder.getTotalAmount()
         );
-        orderEventPublisher.publishOrderCreated(event);
+        outboxEventRepository.save(new OutboxEvent(
+                event.eventId(),
+                savedOrder.getId(),
+                event.eventType(),
+                objectMapper.writeValueAsString(event),
+                event.occurredAt()
+        ));
         return toResponse(savedOrder);
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> getOrders() {
-        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
+    public List<OrderResponse> getOrders(UUID userId) {
+        return orderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public OrderResponse getOrder(UUID id) {
-        return orderRepository.findById(id)
+    public OrderResponse getOrder(UUID id, UUID userId) {
+        return orderRepository.findByIdAndUserId(id, userId)
                 .map(this::toResponse)
                 .orElseThrow(() -> new OrderNotFoundException(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getAllOrders() {
+        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private OrderResponse toResponse(Order order) {

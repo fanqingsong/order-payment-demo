@@ -38,12 +38,15 @@ public class OrderController {
     }
 
     @GetMapping
-    public List<OrderResponse> getOrders() {
-        return orderService.getOrders();
+    public List<OrderResponse> getOrders(@AuthenticationPrincipal AppUserPrincipal principal) {
+        return orderService.getOrders(principal.id());
     }
 
     @GetMapping("/{id}")
-    public OrderResponse getOrder(@PathVariable UUID id) {
-        return orderService.getOrder(id);
+    public OrderResponse getOrder(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable UUID id
+    ) {
+        return orderService.getOrder(id, principal.id());
     }
 }

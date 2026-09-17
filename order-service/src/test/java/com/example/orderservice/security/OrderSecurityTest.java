@@ -65,10 +65,12 @@ class OrderSecurityTest {
 
     @Test
     void allowsAdminToAccessAdminEndpoint() throws Exception {
-        when(orderService.getOrders()).thenReturn(List.of());
+        when(orderService.getAllOrders()).thenReturn(List.of());
 
         mockMvc.perform(get("/api/admin/orders").with(user(principal(Role.ADMIN))))
                 .andExpect(status().isOk());
+
+        verify(orderService).getAllOrders();
     }
 
     @Test

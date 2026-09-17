@@ -40,8 +40,9 @@ class OrderEventPublisherTest {
                 CompletableFuture.completedFuture(null);
         when(kafkaTemplate.send(KafkaTopics.ORDER_CREATED, orderId, event)).thenReturn(future);
 
-        publisher.publishOrderCreated(event);
+        CompletableFuture<SendResult<UUID, OrderCreatedEvent>> result = publisher.publishOrderCreated(event);
 
         verify(kafkaTemplate).send(KafkaTopics.ORDER_CREATED, orderId, event);
+        org.assertj.core.api.Assertions.assertThat(result).isSameAs(future);
     }
 }

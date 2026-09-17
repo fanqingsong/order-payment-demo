@@ -20,6 +20,6 @@ public class AdminOrderController {
 
     @GetMapping
     public List<OrderResponse> getOrders() {
-        return orderService.getOrders();
+        return orderService.getAllOrders();
     }
 }

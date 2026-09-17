@@ -90,3 +90,20 @@ docker exec -it order-payment-kafka /opt/kafka/bin/kafka-console-consumer.sh \
 ```
 
 The Payment Service logs the initial failure, each retry, and the final transfer to the dead-letter topic. The message key remains the order UUID.
+
+## Transactional outbox
+
+Order creation uses a transactional outbox to prevent an order from being committed without a corresponding `OrderCreated` event waiting to be published. The Order Service saves the order and a serialized event in `outbox_events` in the same PostgreSQL transaction. It does not contact Kafka during that transaction.
+
+A scheduled publisher checks pending outbox records every second. After Kafka confirms a send, the publisher marks the record as `PUBLISHED` and sets `published_at`. If Kafka is unavailable, the record remains `PENDING` and is retried on a later run.
+
+This provides at-least-once delivery. A failure after Kafka accepts a message but before the database records it as published can cause the same event to be sent again. The event retains its original `eventId`, allowing the Payment Service's idempotent consumer to ignore that duplicate safely.
+
+Inspect the outbox with:
+
+```bash
+docker exec -it order-payment-postgres psql \
+  -U postgres \
+  -d order_db \
+  -c "SELECT id, aggregate_id, event_type, status, created_at, published_at FROM outbox_events ORDER BY created_at DESC;"
+```

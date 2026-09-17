@@ -3,14 +3,15 @@ package com.example.orderservice;
 import com.example.orderservice.dto.CreateOrderRequest;
 import com.example.orderservice.dto.OrderResponse;
 import com.example.orderservice.entity.OrderStatus;
-import com.example.orderservice.messaging.OrderEventPublisher;
+import com.example.orderservice.entity.OutboxEvent;
+import com.example.orderservice.entity.OutboxStatus;
+import com.example.orderservice.repository.OutboxEventRepository;
 import com.example.orderservice.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @SpringBootTest(properties = {
         "spring.kafka.listener.auto-startup=false",
-        "spring.kafka.admin.auto-create=false"
+        "spring.kafka.admin.auto-create=false",
+        "outbox.publisher.enabled=false"
 })
 class OrderPersistenceIntegrationTest {
 
@@ -43,21 +45,22 @@ class OrderPersistenceIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
     }
 
-    @MockitoBean
-    private OrderEventPublisher orderEventPublisher;
-
     @Autowired
     private OrderService orderService;
 
+    @Autowired
+    private OutboxEventRepository outboxEventRepository;
+
     @Test
-    void persistsAndRetrievesOrder() {
+    void commitsOrderAndOutboxRecordTogether() {
         UUID userId = UUID.randomUUID();
         OrderResponse created = orderService.createOrder(
                 userId,
                 new CreateOrderRequest("Mechanical Keyboard", 2, new BigDecimal("79.50"))
         );
 
-        OrderResponse retrieved = orderService.getOrder(created.id());
+        OrderResponse retrieved = orderService.getOrder(created.id(), userId);
+        OutboxEvent outboxEvent = outboxEventRepository.findAll().getFirst();
 
         assertThat(retrieved.id()).isEqualTo(created.id());
         assertThat(retrieved.userId()).isEqualTo(userId);
@@ -65,5 +68,10 @@ class OrderPersistenceIntegrationTest {
         assertThat(retrieved.quantity()).isEqualTo(2);
         assertThat(retrieved.totalAmount()).isEqualByComparingTo("159.00");
         assertThat(retrieved.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(outboxEvent.getAggregateId()).isEqualTo(created.id());
+        assertThat(outboxEvent.getEventType()).isEqualTo("OrderCreated");
+        assertThat(outboxEvent.getPayload()).contains("\"orderId\":\"" + created.id() + "\"");
+        assertThat(outboxEvent.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(outboxEvent.getPublishedAt()).isNull();
     }
 }
