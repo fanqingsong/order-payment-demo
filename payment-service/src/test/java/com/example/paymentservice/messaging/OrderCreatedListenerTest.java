@@ -9,7 +9,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OrderCreatedListenerTest {
 
@@ -24,11 +26,33 @@ class OrderCreatedListenerTest {
                 Instant.now(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                "Keyboard",
                 new BigDecimal("99.99")
         );
 
         listener.onOrderCreated(event);
 
         verify(paymentService).processOrder(event);
+    }
+
+    @Test
+    void intentionallyFailsForKafkaFailProduct() {
+        PaymentService paymentService = mock(PaymentService.class);
+        OrderCreatedListener listener = new OrderCreatedListener(paymentService);
+        OrderCreatedEvent event = new OrderCreatedEvent(
+                UUID.randomUUID(),
+                "OrderCreated",
+                1,
+                Instant.now(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "KAFKA_FAIL",
+                new BigDecimal("99.99")
+        );
+
+        assertThatThrownBy(() -> listener.onOrderCreated(event))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Simulated Kafka consumer failure");
+        verify(paymentService, never()).processOrder(event);
     }
 }

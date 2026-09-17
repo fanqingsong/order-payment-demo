@@ -11,6 +11,7 @@ public record OrderCreatedEvent(
         Instant occurredAt,
         UUID orderId,
         UUID userId,
+        String productName,
         BigDecimal amount
 ) {
 }

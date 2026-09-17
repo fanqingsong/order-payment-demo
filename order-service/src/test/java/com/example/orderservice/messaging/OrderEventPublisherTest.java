@@ -33,6 +33,7 @@ class OrderEventPublisherTest {
                 Instant.now(),
                 orderId,
                 UUID.randomUUID(),
+                "Keyboard",
                 new BigDecimal("99.90")
         );
         CompletableFuture<SendResult<UUID, OrderCreatedEvent>> future =

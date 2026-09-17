@@ -15,6 +15,11 @@ public class KafkaTopicConfig {
     }
 
     @Bean
+    NewTopic orderCreatedDltTopic() {
+        return topic(KafkaTopics.ORDER_CREATED_DLT);
+    }
+
+    @Bean
     NewTopic paymentCompletedTopic() {
         return topic(KafkaTopics.PAYMENT_COMPLETED);
     }

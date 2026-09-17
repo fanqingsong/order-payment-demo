@@ -100,6 +100,7 @@ class PaymentServiceTest {
                 Instant.now(),
                 orderId,
                 UUID.randomUUID(),
+                "Keyboard",
                 new BigDecimal(amount)
         );
     }

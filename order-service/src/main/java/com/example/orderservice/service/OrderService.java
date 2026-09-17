@@ -52,6 +52,7 @@ public class OrderService {
                 Instant.now(),
                 savedOrder.getId(),
                 savedOrder.getUserId(),
+                savedOrder.getProductName(),
                 savedOrder.getTotalAmount()
         );
         orderEventPublisher.publishOrderCreated(event);

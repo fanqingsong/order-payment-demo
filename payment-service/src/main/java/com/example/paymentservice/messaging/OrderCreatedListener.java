@@ -21,6 +21,11 @@ public class OrderCreatedListener {
     @KafkaListener(topics = KafkaTopics.ORDER_CREATED)
     public void onOrderCreated(OrderCreatedEvent event) {
         log.info("Received OrderCreatedEvent: eventId={}, orderId={}", event.eventId(), event.orderId());
+        if ("KAFKA_FAIL".equals(event.productName())) {
+            log.warn("Intentionally failing OrderCreatedEvent: eventId={}, orderId={}",
+                    event.eventId(), event.orderId());
+            throw new IllegalStateException("Simulated Kafka consumer failure");
+        }
         paymentService.processOrder(event);
     }
 }

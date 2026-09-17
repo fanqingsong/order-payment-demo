@@ -72,4 +72,21 @@ docker exec -it order-payment-kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --property key.separator=" | "
 ```
 
-Keep the consumer running and create an order through the frontend or `POST /api/orders`. You should see the order UUID key followed by a JSON `OrderCreated` event containing `eventId`, `eventVersion`, `occurredAt`, `orderId`, `userId`, and `amount`.
+Keep the consumer running and create an order through the frontend or `POST /api/orders`. You should see the order UUID key followed by a JSON `OrderCreated` event containing `eventId`, `eventVersion`, `occurredAt`, `orderId`, `userId`, `productName`, and `amount`.
+
+### Inspecting failed order events
+
+Create an order whose product name is exactly `KAFKA_FAIL` to simulate a Payment Service consumer failure. The Payment Service retries processing three times with a 500 ms delay, then publishes the original event to `order-created.DLT`.
+
+Inspect existing and new dead-letter messages with:
+
+```bash
+docker exec -it order-payment-kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic order-created.DLT \
+  --from-beginning \
+  --property print.key=true \
+  --property key.separator=" | "
+```
+
+The Payment Service logs the initial failure, each retry, and the final transfer to the dead-letter topic. The message key remains the order UUID.
