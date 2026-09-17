@@ -2,11 +2,13 @@ package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
+import com.example.paymentservice.entity.ProcessedEvent;
 import com.example.paymentservice.event.OrderCreatedEvent;
 import com.example.paymentservice.event.PaymentCompletedEvent;
 import com.example.paymentservice.event.PaymentFailedEvent;
 import com.example.paymentservice.messaging.PaymentEventPublisher;
 import com.example.paymentservice.repository.PaymentRepository;
+import com.example.paymentservice.repository.ProcessedEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,21 +25,34 @@ public class PaymentService {
     private static final BigDecimal PAYMENT_LIMIT = new BigDecimal("10000");
 
     private final PaymentRepository paymentRepository;
+    private final ProcessedEventRepository processedEventRepository;
     private final PaymentEventPublisher eventPublisher;
 
-    public PaymentService(PaymentRepository paymentRepository, PaymentEventPublisher eventPublisher) {
+    public PaymentService(
+            PaymentRepository paymentRepository,
+            ProcessedEventRepository processedEventRepository,
+            PaymentEventPublisher eventPublisher
+    ) {
         this.paymentRepository = paymentRepository;
+        this.processedEventRepository = processedEventRepository;
         this.eventPublisher = eventPublisher;
     }
 
     @Transactional
     public void processOrder(OrderCreatedEvent orderEvent) {
+        if (processedEventRepository.existsById(orderEvent.eventId())) {
+            log.info("Ignoring duplicate OrderCreatedEvent: eventId={}, orderId={}",
+                    orderEvent.eventId(), orderEvent.orderId());
+            return;
+        }
+
         PaymentStatus status = orderEvent.amount().compareTo(PAYMENT_LIMIT) <= 0
                 ? PaymentStatus.COMPLETED
                 : PaymentStatus.FAILED;
         Instant now = Instant.now();
         Payment payment = new Payment(orderEvent.orderId(), orderEvent.amount(), status, now, now);
         Payment savedPayment = paymentRepository.save(payment);
+        processedEventRepository.save(new ProcessedEvent(orderEvent.eventId(), Instant.now()));
 
         log.info("Processed payment: eventId={}, orderId={}, paymentId={}, status={}",
                 orderEvent.eventId(), orderEvent.orderId(), savedPayment.getId(), savedPayment.getStatus());

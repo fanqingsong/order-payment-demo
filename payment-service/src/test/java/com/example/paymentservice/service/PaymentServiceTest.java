@@ -2,11 +2,13 @@ package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
+import com.example.paymentservice.entity.ProcessedEvent;
 import com.example.paymentservice.event.OrderCreatedEvent;
 import com.example.paymentservice.event.PaymentCompletedEvent;
 import com.example.paymentservice.event.PaymentFailedEvent;
 import com.example.paymentservice.messaging.PaymentEventPublisher;
 import com.example.paymentservice.repository.PaymentRepository;
+import com.example.paymentservice.repository.ProcessedEventRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +23,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +32,9 @@ class PaymentServiceTest {
 
     @Mock
     private PaymentRepository paymentRepository;
+
+    @Mock
+    private ProcessedEventRepository processedEventRepository;
 
     @Mock
     private PaymentEventPublisher eventPublisher;
@@ -83,13 +89,30 @@ class PaymentServiceTest {
         verify(eventPublisher, never()).publishCompleted(any());
     }
 
+    @Test
+    void createsOnlyOnePaymentWhenTheSameEventIsDeliveredTwice() {
+        UUID paymentId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        PaymentService paymentService = paymentServiceWithGeneratedId(paymentId);
+        OrderCreatedEvent orderEvent = orderEvent(orderId, "99.99");
+        when(processedEventRepository.existsById(orderEvent.eventId())).thenReturn(false, true);
+
+        paymentService.processOrder(orderEvent);
+        paymentService.processOrder(orderEvent);
+
+        verify(paymentRepository, times(1)).save(any(Payment.class));
+        verify(processedEventRepository, times(1)).save(any(ProcessedEvent.class));
+        verify(eventPublisher, times(1)).publishCompleted(any(PaymentCompletedEvent.class));
+        verify(eventPublisher, never()).publishFailed(any());
+    }
+
     private PaymentService paymentServiceWithGeneratedId(UUID paymentId) {
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
             Payment payment = invocation.getArgument(0);
             ReflectionTestUtils.setField(payment, "id", paymentId);
             return payment;
         });
-        return new PaymentService(paymentRepository, eventPublisher);
+        return new PaymentService(paymentRepository, processedEventRepository, eventPublisher);
     }
 
     private OrderCreatedEvent orderEvent(UUID orderId, String amount) {
