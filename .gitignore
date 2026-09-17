@@ -1,0 +1,38 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java and Maven
+**/target/
+*.log
+hs_err_pid*
+
+# Angular and Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/out-tsc/
+frontend/.cache/
+npm-debug.log*
+yarn-error.log*
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Local Spring configuration
+**/application-local.yml
+**/application-local.yaml
+**/application-secrets.yml
+**/application-secrets.yaml
+
+# Temporary editor files
+*.tmp
+*.swp
+*~
