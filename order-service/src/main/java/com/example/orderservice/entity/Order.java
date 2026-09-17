@@ -96,4 +96,15 @@ public class Order {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void updatePaymentStatus(OrderStatus status, Instant updatedAt) {
+        if (this.status != OrderStatus.PENDING_PAYMENT) {
+            throw new IllegalStateException("Only pending orders can receive a payment result");
+        }
+        if (status != OrderStatus.PAID && status != OrderStatus.PAYMENT_FAILED) {
+            throw new IllegalArgumentException("Payment result must be PAID or PAYMENT_FAILED");
+        }
+        this.status = status;
+        this.updatedAt = updatedAt;
+    }
 }

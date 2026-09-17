@@ -10,9 +10,20 @@ public class KafkaTopicConfig {
 
     @Bean
     NewTopic orderCreatedTopic() {
-        return TopicBuilder.name(KafkaTopics.ORDER_CREATED)
-                .partitions(1)
-                .replicas(1)
-                .build();
+        return topic(KafkaTopics.ORDER_CREATED);
+    }
+
+    @Bean
+    NewTopic paymentCompletedTopic() {
+        return topic(KafkaTopics.PAYMENT_COMPLETED);
+    }
+
+    @Bean
+    NewTopic paymentFailedTopic() {
+        return topic(KafkaTopics.PAYMENT_FAILED);
+    }
+
+    private NewTopic topic(String name) {
+        return TopicBuilder.name(name).partitions(1).replicas(1).build();
     }
 }
