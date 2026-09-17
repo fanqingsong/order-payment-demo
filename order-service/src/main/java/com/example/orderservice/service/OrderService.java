@@ -82,8 +82,15 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public OrderResponse getOrder(UUID id, UUID userId) {
+    public OrderResponse getOrderForUser(UUID id, UUID userId) {
         return orderRepository.findByIdAndUserId(id, userId)
+                .map(this::toResponse)
+                .orElseThrow(() -> new OrderNotFoundException(id));
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderForAdmin(UUID id) {
+        return orderRepository.findById(id)
                 .map(this::toResponse)
                 .orElseThrow(() -> new OrderNotFoundException(id));
     }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -21,13 +22,27 @@ import { AuthService } from '@core/auth/auth.service';
         <small>Use 8–72 characters.</small>
       </label>
       @if (error()) {
-        <p class="error" role="alert">{{ error() }}</p>
+        <div class="register-error" role="alert">
+          <strong>Registration failed</strong>
+          <span>{{ error() }}</span>
+        </div>
       }
       <button type="submit" [disabled]="form.invalid || submitting()">
         {{ submitting() ? 'Creating account…' : 'Register' }}
       </button>
     </form>
     <p>Already registered? <a routerLink="/login">Log in</a>.</p>
+  `,
+  styles: `
+    .register-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 0.375rem;
+      color: #991b1b;
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.75rem 0.9rem;
+    }
   `,
 })
 export class RegisterPage {
@@ -53,7 +68,15 @@ export class RegisterPage {
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: () => void this.router.navigate(['/login']),
-        error: (error: unknown) => this.error.set(apiErrorMessage(error)),
+        error: (error: unknown) => this.error.set(this.registrationErrorMessage(error)),
       });
+  }
+
+  private registrationErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse && error.status === 409) {
+      return 'An account already exists for this email. Try logging in instead.';
+    }
+
+    return apiErrorMessage(error);
   }
 }

@@ -30,7 +30,7 @@ import { OrderApiService } from '@features/orders/order-api.service';
         <button type="submit" [disabled]="form.invalid || submitting()">
           {{ submitting() ? 'Creating…' : 'Create order' }}
         </button>
-        <a routerLink="/orders">Cancel</a>
+        <a class="secondary-link" routerLink="/orders">Cancel</a>
       </div>
     </form>
   `,

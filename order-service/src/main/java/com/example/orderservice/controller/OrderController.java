@@ -2,6 +2,7 @@ package com.example.orderservice.controller;
 
 import com.example.orderservice.dto.CreateOrderRequest;
 import com.example.orderservice.dto.OrderResponse;
+import com.example.orderservice.entity.Role;
 import com.example.orderservice.security.AppUserPrincipal;
 import com.example.orderservice.service.OrderService;
 import jakarta.validation.Valid;
@@ -47,6 +48,9 @@ public class OrderController {
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        return orderService.getOrder(id, principal.id());
+        if (principal.role() == Role.ADMIN) {
+            return orderService.getOrderForAdmin(id);
+        }
+        return orderService.getOrderForUser(id, principal.id());
     }
 }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -20,13 +21,27 @@ import { AuthService } from '@core/auth/auth.service';
         <input type="password" formControlName="password" autocomplete="current-password" />
       </label>
       @if (error()) {
-        <p class="error" role="alert">{{ error() }}</p>
+        <div class="login-error" role="alert">
+          <strong>Login failed</strong>
+          <span>{{ error() }}</span>
+        </div>
       }
       <button type="submit" [disabled]="form.invalid || submitting()">
         {{ submitting() ? 'Logging in…' : 'Log in' }}
       </button>
     </form>
     <p>Need an account? <a routerLink="/register">Register</a>.</p>
+  `,
+  styles: `
+    .login-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 0.375rem;
+      color: #991b1b;
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.75rem 0.9rem;
+    }
   `,
 })
 export class LoginPage {
@@ -53,7 +68,15 @@ export class LoginPage {
           const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/orders';
           void this.router.navigateByUrl(returnUrl);
         },
-        error: (error: unknown) => this.error.set(apiErrorMessage(error)),
+        error: (error: unknown) => this.error.set(this.loginErrorMessage(error)),
       });
+  }
+
+  private loginErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse && error.status === 401) {
+      return 'Incorrect email or password. Please try again.';
+    }
+
+    return apiErrorMessage(error);
   }
 }
