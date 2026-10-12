@@ -1,3 +1,19 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · OutboxPublisherTest.java                                   ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】OutboxPublisher 成功/失败路径测试。
+ * 【为什么】发送失败时保持 PENDING 可重试。
+ * 【怎么做】Mock 依赖；CompletableFuture 成功/异常分支。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   send OK ──► PUBLISHED
+ *   send FAIL ──► 仍 PENDING
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.messaging;
 
 import com.example.orderservice.entity.OutboxEvent;
@@ -50,6 +66,7 @@ class OutboxPublisherTest {
                 orderId,
                 UUID.randomUUID(),
                 "Keyboard",
+                1,
                 new BigDecimal("99.90")
         );
         outboxEvent = new OutboxEvent(eventId, orderId, "OrderCreated", "{}", Instant.now());

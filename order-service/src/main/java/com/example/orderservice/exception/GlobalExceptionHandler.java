@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · GlobalExceptionHandler.java                                ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】@RestControllerAdvice 全局异常 → ApiError。
+ * 【为什么】集中 404/400/409/401 等响应。
+ * 【怎么做】多个 @ExceptionHandler + buildResponse 辅助方法。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   throw ──► @ControllerAdvice ──► JSON
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +27,9 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 全局 REST 异常映射：将 Java 异常转为统一的 {@link ApiError} JSON，便于前端处理。
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

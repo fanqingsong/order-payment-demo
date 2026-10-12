@@ -1,8 +1,23 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · PaymentKafkaIntegrationTest.java                           ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】Testcontainers Kafka+Postgres 端到端支付流测试。
+ * 【为什么】验证消费、落库、发布 payment-completed。
+ * 【怎么做】SpringBootTest + KafkaTemplate 发消息 + poll 断言。
+ *
+ * 示意图（payment-service · 8081 · payment_db）：
+ *   TC Kafka ──► listener ──► DB ──► event
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.paymentservice;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
-import com.example.paymentservice.event.OrderCreatedEvent;
+import com.example.paymentservice.event.InventoryReservedEvent;
 import com.example.paymentservice.messaging.KafkaTopics;
 import com.example.paymentservice.repository.PaymentRepository;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -64,24 +79,27 @@ class PaymentKafkaIntegrationTest {
     private PaymentRepository paymentRepository;
 
     @Test
-    void consumesOrderPersistsPaymentAndPublishesResult() throws Exception {
+    void consumesInventoryReservedPersistsPaymentAndPublishesResult() throws Exception {
         UUID orderId = UUID.randomUUID();
-        OrderCreatedEvent orderEvent = new OrderCreatedEvent(
+        InventoryReservedEvent inventoryEvent = new InventoryReservedEvent(
                 UUID.randomUUID(),
-                "OrderCreated",
+                "InventoryReserved",
                 1,
                 Instant.now(),
                 orderId,
                 UUID.randomUUID(),
                 "Integration Test Product",
-                new BigDecimal("125.00")
+                1,
+                new BigDecimal("125.00"),
+                UUID.randomUUID(),
+                UUID.randomUUID()
         );
 
         try (KafkaConsumer<UUID, String> resultConsumer = paymentResultConsumer()) {
             resultConsumer.subscribe(List.of(KafkaTopics.PAYMENT_COMPLETED));
             resultConsumer.poll(Duration.ofMillis(500));
 
-            kafkaTemplate.send(KafkaTopics.ORDER_CREATED, orderId, orderEvent).get();
+            kafkaTemplate.send(KafkaTopics.INVENTORY_RESERVED, orderId, inventoryEvent).get();
 
             Payment payment = waitForPayment(orderId);
             ConsumerRecord<UUID, String> result = waitForPaymentResult(resultConsumer, orderId);

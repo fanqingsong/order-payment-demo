@@ -1,0 +1,827 @@
+{
+  "inventory-service/src/main/java/com/example/inventoryservice/InventoryServiceApplication.java": {
+    "what": "库存微服务的 Spring Boot 启动入口。",
+    "why": "独立进程消费 order-created、更新 inventory_db，承担 Saga「预占库存」步骤。",
+    "how": "main 启动 Spring 容器，注册 Kafka Listener、InventoryService、JPA 仓库等 Bean。",
+    "diagram": [
+      "  ┌─────────────┐",
+      "  │ Spring Boot │──► Kafka + PostgreSQL(inventory_db)",
+      "  └─────────────┘"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/config/KafkaConsumerErrorConfig.java": {
+    "what": "order-created 消费者的重试与死信（DLT）配置类。",
+    "why": "演示消费失败时不无限阻塞分区，并把问题消息送到 DLT 便于排查。",
+    "how": "DefaultErrorHandler + 500ms×3 次重试 + DeadLetterPublishingRecoverer 写入 order-created.DLT。",
+    "diagram": [
+      "  消息 ──X──► 重试(3) ──► order-created.DLT"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/config/KafkaTopicConfig.java": {
+    "what": "启动时声明库存服务需要的 Kafka Topic。",
+    "why": "Demo 环境可能未预建主题，避免 Listener 订阅时报错。",
+    "how": "@Configuration 中 @Bean NewTopic，TopicBuilder 指定分区/副本数。",
+    "diagram": [
+      "  应用启动 ──► Kafka Admin ──► 创建 Topic"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/entity/InventoryItem.java": {
+    "what": "SKU 库存实体：可售 available 与已预占 reserved 数量。",
+    "why": "库存是 Saga 中被修改的核心数据；预占/确认/释放都作用于此表。",
+    "how": "JPA @Entity；reserve()/confirmReservation()/releaseReservation() 封装数量变更规则。",
+    "diagram": [
+      "  available ──reserve──► reserved",
+      "      ▲                  │",
+      "      └──release◄──confirm"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/entity/InventoryReservation.java": {
+    "what": "单笔订单的预占记录（orderId、商品、数量、状态）。",
+    "why": "支付结果到达时需按 orderId 定位预占并确认或释放。",
+    "how": "UUID 主键 + ReservationStatus；提供 markConfirmed/markReleased 等领域方法。",
+    "diagram": [
+      "  orderId ═══ 1 条 reservation 行"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/entity/ProcessedEvent.java": {
+    "what": "已处理 eventId 的幂等账本实体。",
+    "why": "Kafka 至少一次投递，重复消息不能重复扣库存。",
+    "how": "eventId 主键 + processedAt；处理前 existsById，成功后同事务 insert。",
+    "diagram": [
+      "  eventId 已存在? ──是──► 跳过",
+      "        └──否──► 业务 + 记账"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/entity/ReservationStatus.java": {
+    "what": "预占状态枚举：RESERVED / CONFIRMED / RELEASED。",
+    "why": "约束非法状态迁移（如对 RELEASED 再确认）。",
+    "how": "枚举存为字符串列，绑定在 InventoryReservation.status。",
+    "diagram": [
+      "  RESERVED ──付成──► CONFIRMED",
+      "      └──付败──► RELEASED"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/event/InventoryReservationFailedEvent.java": {
+    "what": "预占失败时发往 Kafka 的事件 record。",
+    "why": "通知 order-service 置 INVENTORY_FAILED，支付链路不会启动。",
+    "how": "含 orderId、product、quantity、reason；InventoryEventPublisher 发送。",
+    "diagram": [
+      "  缺货 ──► inventory-reservation-failed ──► Order"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/event/InventoryReservedEvent.java": {
+    "what": "预占成功时发往 Kafka 的事件 record。",
+    "why": "同时触发 payment-service 与 order-service 的下一步。",
+    "how": "含 amount、reservationId、orderCreatedEventId 等追踪字段。",
+    "diagram": [
+      "  预占 OK ──► inventory-reserved",
+      "       ├────► Payment",
+      "       └────► Order"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/event/OrderCreatedEvent.java": {
+    "what": "order-created 消息在本服务内的反序列化 DTO。",
+    "why": "各微服务独立编译，JSON 字段一致即可互通。",
+    "how": "Java record，OrderCreatedListener 从 Kafka 反序列化后传入 InventoryService。",
+    "diagram": [
+      "  order-created(JSON) ──► OrderCreatedEvent"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/event/PaymentCompletedEvent.java": {
+    "what": "payment-completed 的入站 DTO（库存服务副本）。",
+    "why": "支付成功后需「确认」预占，实扣库存。",
+    "how": "Java record，PaymentResultListener 消费。",
+    "diagram": [
+      "  payment-completed ──► confirm 库存"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/event/PaymentFailedEvent.java": {
+    "what": "payment-failed 的入站 DTO。",
+    "why": "支付失败时 Saga 补偿：释放预占。",
+    "how": "Java record，PaymentResultListener 消费。",
+    "diagram": [
+      "  payment-failed ──► release 预占"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/messaging/InventoryEventPublisher.java": {
+    "what": "发布 inventory-reserved / inventory-reservation-failed 的组件。",
+    "why": "在本地 DB 事务提交后通知下游，完成库存出站步骤。",
+    "how": "注入 KafkaTemplate，send(topic, orderId, payload)。",
+    "diagram": [
+      "  DB 提交 ──► KafkaTemplate.send"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/messaging/KafkaTopics.java": {
+    "what": "Kafka 主题名字面量常量集合。",
+    "why": "统一 Listener、DLT、配置中的拼写，避免 typo。",
+    "how": "final 类，仅 public static final String 常量。",
+    "diagram": [
+      "  代码 ═══ broker Topic 名"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/messaging/OrderCreatedListener.java": {
+    "what": "订阅 order-created 的 Kafka 监听器。",
+    "why": "订单创建后自动进入「预占库存」Saga 步。",
+    "how": "@KafkaListener → InventoryService.reserveForOrder；商品 KAFKA_FAIL 可模拟失败。",
+    "diagram": [
+      "  order-created ──► reserveForOrder()"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/messaging/PaymentResultListener.java": {
+    "what": "订阅 payment-completed / payment-failed 的监听器。",
+    "why": "支付终态后库存侧最终一致：确认扣减或释放。",
+    "how": "两个 @KafkaListener 方法分别调用 confirmAfterPayment / releaseAfterPaymentFailure。",
+    "diagram": [
+      "  payment-* ──► confirm | release"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/repository/InventoryItemRepository.java": {
+    "what": "InventoryItem 的 Spring Data JPA Repository。",
+    "why": "持久化 SKU 库存行。",
+    "how": "extends JpaRepository<InventoryItem, String>，主键为 productName。",
+    "diagram": [
+      "  Service ──► Repo ──► inventory_items 表"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/repository/InventoryReservationRepository.java": {
+    "what": "InventoryReservation 的 JPA Repository。",
+    "why": "按 orderId 查询预占记录。",
+    "how": "findByOrderId(UUID) + 标准 save/findById。",
+    "diagram": [
+      "  orderId ──► Optional<Reservation>"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/repository/ProcessedEventRepository.java": {
+    "what": "processed_events 幂等表的 JPA 访问。",
+    "why": "支撑 existsById 去重。",
+    "how": "JpaRepository<ProcessedEvent, UUID>。",
+    "diagram": [
+      "  eventId ──► 账本"
+    ]
+  },
+  "inventory-service/src/main/java/com/example/inventoryservice/service/InventoryService.java": {
+    "what": "库存领域服务：预占、确认、释放，含幂等与演示规则（OUT_OF_STOCK 等）。",
+    "why": "实现「先占库存再支付」，避免付了款没货。",
+    "how": "@Transactional 方法：幂等 → 改 Item/Reservation → ProcessedEvent → InventoryEventPublisher。",
+    "diagram": [
+      "  OrderCreated",
+      "      │",
+      "      ▼",
+      "  reserve ──OK──► inventory-reserved",
+      "      └──FAIL──► reservation-failed"
+    ]
+  },
+  "inventory-service/src/test/java/com/example/inventoryservice/service/InventoryServiceTest.java": {
+    "what": "InventoryService 单元测试（预占成功/失败路径）。",
+    "why": "不启 Kafka/DB 即可验证领域逻辑与事件发布。",
+    "how": "Mockito mock 依赖；ArgumentCaptor 捕获发布的事件。",
+    "diagram": [
+      "  @Test ──mock──► reserveForOrder ──verify"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/NotificationServiceApplication.java": {
+    "what": "通知微服务 Spring Boot 启动类。",
+    "why": "演示 Saga 旁路：只消费支付结果，模拟邮件。",
+    "how": "@SpringBootApplication + main。",
+    "diagram": [
+      "  Boot ──► Kafka Consumer only"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/event/PaymentCompletedEvent.java": {
+    "what": "payment-completed JSON 的本地 record DTO。",
+    "why": "与 payment-service 字段对齐，独立模块编译。",
+    "how": "Java record，Listener 反序列化用。",
+    "diagram": [
+      "  JSON ──► PaymentCompletedEvent"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/event/PaymentFailedEvent.java": {
+    "what": "payment-failed JSON 的本地 record DTO。",
+    "why": "同上，跨服务靠 JSON 契约。",
+    "how": "Java record。",
+    "diagram": [
+      "  JSON ──► PaymentFailedEvent"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/messaging/KafkaTopics.java": {
+    "what": "通知服务订阅的 Topic 常量。",
+    "why": "本服务不发布业务消息，只读支付结果。",
+    "how": "PAYMENT_COMPLETED、PAYMENT_FAILED 字符串。",
+    "diagram": [
+      "  只读: payment-completed / payment-failed"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/messaging/PaymentResultListener.java": {
+    "what": "支付结果的 Kafka 监听器。",
+    "why": "与 Order/Inventory 并行消费（不同 consumer group）。",
+    "how": "@KafkaListener 转调 NotificationService。",
+    "diagram": [
+      "  payment-* ──► NotificationService"
+    ]
+  },
+  "notification-service/src/main/java/com/example/notificationservice/service/NotificationService.java": {
+    "what": "用日志模拟发送邮件的服务。",
+    "why": "compose 日志中可观察 Saga 终态副作用。",
+    "how": "SLF4J info 输出 EMAIL SENT 模板。",
+    "diagram": [
+      "  事件 ──► log \"EMAIL SENT\""
+    ]
+  },
+  "notification-service/src/test/java/com/example/notificationservice/messaging/PaymentResultListenerTest.java": {
+    "what": "PaymentResultListener  wiring 测试。",
+    "why": "确保监听器调用 NotificationService。",
+    "how": "Mock NotificationService + verify。",
+    "diagram": [
+      "  listener ──verify──► send*"
+    ]
+  },
+  "notification-service/src/test/java/com/example/notificationservice/service/NotificationServiceTest.java": {
+    "what": "NotificationService 日志输出测试。",
+    "why": "回归 EMAIL SENT 文案。",
+    "how": "OutputCapture + AssertJ。",
+    "diagram": [
+      "  service ──► 捕获日志"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/OrderServiceApplication.java": {
+    "what": "订单微服务 Spring Boot 启动类。",
+    "why": "聚合 REST、JWT、Outbox 定时任务、Kafka 消费/生产。",
+    "how": "@SpringBootApplication + @EnableScheduling（驱动 OutboxPublisher）。",
+    "diagram": [
+      "  ┌──────────┐",
+      "  │ :8080    │── HTTP + Outbox + Kafka",
+      "  └──────────┘"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/config/SecurityConfig.java": {
+    "what": "Spring Security 过滤器链与 JWT 无状态配置。",
+    "why": "保护 /api/orders；/api/auth 公开；管理员路由需 ROLE_ADMIN。",
+    "how": "SecurityFilterChain：禁用 CSRF/session；JwtAuthenticationFilter 在 UsernamePasswordAuthenticationFilter 之前。",
+    "diagram": [
+      "  Request ──► JWT Filter ──► 鉴权 ──► Controller"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/controller/AdminOrderController.java": {
+    "what": "管理员 REST：GET /api/admin/orders 列出全部订单。",
+    "why": "运营视角与用户 API 分离。",
+    "how": "@RestController + OrderService.getAllOrders()；需 ADMIN 角色。",
+    "diagram": [
+      "  ADMIN + JWT ──► 全量订单列表"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/controller/AuthController.java": {
+    "what": "认证 REST：POST /api/auth/register、/login。",
+    "why": "前端获取 JWT 的公开入口。",
+    "how": "@Valid DTO → AuthService.register/login。",
+    "diagram": [
+      "  register/login ──► JWT"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/controller/OrderController.java": {
+    "what": "用户订单 REST：创建、列表、按 ID 查询。",
+    "why": "从 JWT 取 userId，防止 body 伪造身份。",
+    "how": "@AuthenticationPrincipal AppUserPrincipal → OrderService。",
+    "diagram": [
+      "  Bearer JWT ──► principal.id ──► OrderService"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/AuthResponse.java": {
+    "what": "登录成功响应：accessToken、tokenType、expiresAt。",
+    "why": "客户端保存 Bearer Token 访问受保护 API。",
+    "how": "Java record，AuthService.login 返回。",
+    "diagram": [
+      "  login ──► { accessToken, expiresAt }"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/CreateOrderRequest.java": {
+    "what": "POST /api/orders 请求体 record。",
+    "why": "Bean Validation 校验商品名、数量、单价。",
+    "how": "@NotBlank/@Min/@DecimalMin 等注解。",
+    "diagram": [
+      "  JSON ──@Valid──► createOrder"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/LoginRequest.java": {
+    "what": "登录请求 email + password record。",
+    "why": "交给 AuthenticationManager 校验。",
+    "how": "@Email @NotBlank 字段。",
+    "diagram": [
+      "  credentials ──► AuthService.login"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/OrderResponse.java": {
+    "what": "订单 API 响应投影 record。",
+    "why": "隐藏 JPA 实体细节，稳定对外契约。",
+    "how": "OrderService 从 Order 实体映射字段。",
+    "diagram": [
+      "  Order(entity) ──map──► OrderResponse"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/RegisterRequest.java": {
+    "what": "注册请求 email/password record。",
+    "why": "限制密码长度等基础安全。",
+    "how": "AuthController.register 入参。",
+    "diagram": [
+      "  register body ──► AuthService"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/dto/RegisterResponse.java": {
+    "what": "注册成功返回 id、email、role、createdAt（不含 Token）。",
+    "why": "注册与登录分离，需再 login 取 JWT。",
+    "how": "AuthService.register 构造 record。",
+    "diagram": [
+      "  register ──► 用户概要"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/Order.java": {
+    "what": "订单 JPA 实体（order_db.orders）。",
+    "why": "订单状态机在本服务落库，Saga 异步步回写此表。",
+    "how": "applyInventoryReserved/Failed、updatePaymentStatus；初始 PENDING_INVENTORY。",
+    "diagram": [
+      "  PENDING_INVENTORY ──► PENDING_PAYMENT ──► PAID",
+      "         └── INVENTORY_FAILED / PAYMENT_FAILED"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/OrderStatus.java": {
+    "what": "订单生命周期枚举。",
+    "why": "与 inventory/payment 事件对齐，支持乱序支付结果。",
+    "how": "PENDING_INVENTORY、PENDING_PAYMENT、INVENTORY_FAILED、PAID、PAYMENT_FAILED。",
+    "diagram": [
+      "  见 docs/architecture.md 状态图"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/OutboxEvent.java": {
+    "what": "事务性 Outbox 表行：待发 Kafka 的 JSON 载荷。",
+    "why": "下单与发 order-created 解耦，保证库与消息最终一致。",
+    "how": "含 eventType、payload、OutboxStatus；markPublished() 更新状态。",
+    "diagram": [
+      "  同事务: Order + Outbox(PENDING)",
+      "       └──► OutboxPublisher ──► PUBLISHED"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/OutboxStatus.java": {
+    "what": "Outbox 行状态：PENDING / PUBLISHED。",
+    "why": "OutboxPublisher 只扫描 PENDING。",
+    "how": "枚举字段 on OutboxEvent.status。",
+    "diagram": [
+      "  PENDING ──发送成功──► PUBLISHED"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/Role.java": {
+    "what": "用户角色 USER / ADMIN。",
+    "why": "映射 Spring Security ROLE_* 权限。",
+    "how": "枚举存 users.role 列。",
+    "diagram": [
+      "  USER │ ADMIN"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/entity/User.java": {
+    "what": "用户 JPA 实体（BCrypt 密码哈希）。",
+    "why": "JWT 认证的用户主数据。",
+    "how": "UUID id、唯一 email、Role、createdAt。",
+    "diagram": [
+      "  users 表 ◄── AuthService"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/event/InventoryReservationFailedEvent.java": {
+    "what": "消费 inventory-reservation-failed 的 DTO。",
+    "why": "库存失败时更新订单状态。",
+    "how": "Java record → InventoryResultService。",
+    "diagram": [
+      "  inv-fail event ──► INVENTORY_FAILED"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/event/InventoryReservedEvent.java": {
+    "what": "消费 inventory-reserved 的 DTO。",
+    "why": "库存成功 → PENDING_PAYMENT。",
+    "how": "Java record → InventoryResultService。",
+    "diagram": [
+      "  inv-OK event ──► PENDING_PAYMENT"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/event/OrderCreatedEvent.java": {
+    "what": "下单后写入 Outbox/Kafka 的 OrderCreated 载荷。",
+    "why": "启动 inventory 预占链路。",
+    "how": "record：eventId、orderId、userId、product、quantity、amount。",
+    "diagram": [
+      "  createOrder ──► OrderCreated ──► order-created"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/event/PaymentCompletedEvent.java": {
+    "what": "消费 payment-completed 的 DTO。",
+    "why": "订单置 PAID。",
+    "how": "PaymentResultListener → PaymentResultService。",
+    "diagram": [
+      "  payment-completed ──► PAID"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/event/PaymentFailedEvent.java": {
+    "what": "消费 payment-failed 的 DTO。",
+    "why": "订单置 PAYMENT_FAILED。",
+    "how": "PaymentResultListener → PaymentResultService。",
+    "diagram": [
+      "  payment-failed ──► PAYMENT_FAILED"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/exception/ApiError.java": {
+    "what": "统一 JSON 错误体 record。",
+    "why": "前端一致处理 4xx/5xx。",
+    "how": "timestamp、status、error、message、path、validationErrors。",
+    "diagram": [
+      "  Exception ──► ApiError JSON"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/exception/DuplicateEmailException.java": {
+    "what": "注册邮箱已存在时抛出的运行时异常。",
+    "why": "映射 HTTP 409 Conflict。",
+    "how": "GlobalExceptionHandler 捕获并 buildResponse。",
+    "diagram": [
+      "  dup email ──► 409"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/exception/GlobalExceptionHandler.java": {
+    "what": "@RestControllerAdvice 全局异常 → ApiError。",
+    "why": "集中 404/400/409/401 等响应。",
+    "how": "多个 @ExceptionHandler + buildResponse 辅助方法。",
+    "diagram": [
+      "  throw ──► @ControllerAdvice ──► JSON"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/exception/OrderNotFoundException.java": {
+    "what": "订单不存在或无权访问异常。",
+    "why": "返回 404，避免泄露资源存在性。",
+    "how": "携带 orderId 构造消息。",
+    "diagram": [
+      "  无订单 ──► 404"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/InventoryResultListener.java": {
+    "what": "消费 inventory-reserved / inventory-reservation-failed。",
+    "why": "把库存 Saga 结果写回 order_db。",
+    "how": "委托 InventoryResultService.handle*。",
+    "diagram": [
+      "  inventory-* ──► InventoryResultService"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/KafkaTopicConfig.java": {
+    "what": "order-service 相关 Kafka Topic 自动声明。",
+    "why": "Demo 集群预建主题。",
+    "how": "@Bean NewTopic：order-created、inventory-*、payment-* 等。",
+    "diagram": [
+      "  启动 ──► 创建 Topic"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/KafkaTopics.java": {
+    "what": "订单服务使用的 Topic 名字常量。",
+    "why": "与 inventory/payment/notification 共享命名契约。",
+    "how": "final 类静态字符串。",
+    "diagram": [
+      "  常量 ═══ broker"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/OrderEventPublisher.java": {
+    "what": "向 order-created 发送 OrderCreatedEvent。",
+    "why": "由 OutboxPublisher 在异步任务中调用。",
+    "how": "KafkaTemplate.send(topic, orderId, event)。",
+    "diagram": [
+      "  Outbox ──► order-created"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/OutboxPublisher.java": {
+    "what": "定时扫描 PENDING Outbox 并投递 Kafka。",
+    "why": "实现 Transactional Outbox，支持 Kafka 短暂不可用重试。",
+    "how": "@Scheduled + 反序列化 payload + publishOrderCreated().get() 成功后 markPublished。",
+    "diagram": [
+      "  ┌─────────┐  poll   ┌───────┐",
+      "  │ outbox  │───────►│ Kafka │",
+      "  └─────────┘        └───────┘"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/messaging/PaymentResultListener.java": {
+    "what": "消费 payment-completed / payment-failed。",
+    "why": "异步更新订单支付终态。",
+    "how": "PaymentResultService.handleCompleted/Failed。",
+    "diagram": [
+      "  payment-* ──► PaymentResultService"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/repository/OrderRepository.java": {
+    "what": "Order 实体的 Spring Data JPA。",
+    "why": "用户维度列表与按 id+userId 查询。",
+    "how": "findAllByUserIdOrderByCreatedAtDesc、findByIdAndUserId。",
+    "diagram": [
+      "  OrderService ──► orders 表"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/repository/OutboxEventRepository.java": {
+    "what": "Outbox 表访问；轮询待发送记录。",
+    "why": "多实例下 pessimistic lock 降低重复发送风险。",
+    "how": "findTop100ByStatusOrderByCreatedAtAsc + @Lock PESSIMISTIC_WRITE。",
+    "diagram": [
+      "  PENDING 行 ──FOR UPDATE──► 发送"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/repository/UserRepository.java": {
+    "what": "User 表 JPA；按邮箱查找。",
+    "why": "注册/登录唯一性。",
+    "how": "findByEmail、existsByEmail。",
+    "diagram": [
+      "  email ──► User"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/security/AppUserDetailsService.java": {
+    "what": "Spring Security UserDetailsService 实现。",
+    "why": "登录时按邮箱加载用户。",
+    "how": "email 小写化 → UserRepository → AppUserPrincipal.from。",
+    "diagram": [
+      "  login email ──► UserDetails"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/security/AppUserPrincipal.java": {
+    "what": "JWT 与 SecurityContext 中的用户主体 record。",
+    "why": "统一 id、email、role 与 ROLE_* 权限。",
+    "how": "实现 UserDetails；from(User) 工厂方法。",
+    "diagram": [
+      "  User ──► Principal ──► SecurityContext"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/security/JwtAuthenticationFilter.java": {
+    "what": "每请求解析 Authorization: Bearer 的过滤器。",
+    "why": "无状态 API 建立 Authentication。",
+    "how": "OncePerRequestFilter：parseToken → 设置 SecurityContext。",
+    "diagram": [
+      "  Bearer JWT ──► SecurityContext"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/security/JwtService.java": {
+    "what": "JWT 签发与校验（JJWT）。",
+    "why": "login 发 token；filter 验 token。",
+    "how": "HMAC 密钥 + TTL；claims 含 userId、email、role。",
+    "diagram": [
+      "  login ──sign──► JWT ──verify──► filter"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/service/AuthService.java": {
+    "what": "注册与登录业务：BCrypt、AuthenticationManager、发 JWT。",
+    "why": "密码明文不落库；邮箱规范化防重复。",
+    "how": "register 查重+encode；login authenticate 后 jwtService.generateToken。",
+    "diagram": [
+      "  register ──► users表",
+      "  login ──► JWT"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/service/InventoryResultService.java": {
+    "what": "根据库存 Kafka 事件更新 Order 状态。",
+    "why": "连接 inventory Saga 与 order 聚合。",
+    "how": "@Transactional handleReserved/Failed；仅 PENDING_INVENTORY 可迁移。",
+    "diagram": [
+      "  inventory event ──► order.status"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/service/OrderService.java": {
+    "what": "订单 CRUD 核心；createOrder 同事务写 Outbox。",
+    "why": "避免双写：不在下单事务内直调 Kafka。",
+    "how": "计算金额 → save Order(PENDING_INVENTORY) → save Outbox(JSON OrderCreated)。",
+    "diagram": [
+      "  POST order",
+      "     │",
+      "     ▼",
+      "  TX[ orders + outbox ]",
+      "     └──► (异步) order-created"
+    ]
+  },
+  "order-service/src/main/java/com/example/orderservice/service/PaymentResultService.java": {
+    "what": "根据支付 Kafka 事件更新 Order。",
+    "why": "完成 Saga 支付腿在 order_db 的状态。",
+    "how": "handleCompleted/Failed；允许 PENDING_PAYMENT 或乱序 PENDING_INVENTORY。",
+    "diagram": [
+      "  payment event ──► PAID | PAYMENT_FAILED"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/OrderPersistenceIntegrationTest.java": {
+    "what": "订单持久化 + MockMvc + Testcontainers Postgres 集成测试。",
+    "why": "不启 Kafka 验证 HTTP、安全、Outbox 落库。",
+    "how": "SpringBootTest；禁用 listener/outbox；@WithUser MockMvc 断言 DB。",
+    "diagram": [
+      "  Postgres TC ──► MockMvc ──► assert DB"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/messaging/OrderEventPublisherTest.java": {
+    "what": "OrderEventPublisher 单元测试。",
+    "why": "断言 Kafka message key 为 orderId。",
+    "how": "Mock KafkaTemplate + verify send。",
+    "diagram": [
+      "  publish ──verify──► send(key=orderId)"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/messaging/OutboxPublisherTest.java": {
+    "what": "OutboxPublisher 成功/失败路径测试。",
+    "why": "发送失败时保持 PENDING 可重试。",
+    "how": "Mock 依赖；CompletableFuture 成功/异常分支。",
+    "diagram": [
+      "  send OK ──► PUBLISHED",
+      "  send FAIL ──► 仍 PENDING"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/messaging/PaymentResultListenerTest.java": {
+    "what": "PaymentResultListener 委托 PaymentResultService 测试。",
+    "why": "薄适配层回归。",
+    "how": "Mock service + verify handle*。",
+    "diagram": [
+      "  listener ──► verify service"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/security/JwtServiceTest.java": {
+    "what": "JWT 签发解析往返测试。",
+    "why": "claims 含 userId/email/role/过期。",
+    "how": "测试密钥 Reflection 或 @TestPropertySource。",
+    "diagram": [
+      "  sign ──► parse ──► assert claims"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/security/OrderSecurityTest.java": {
+    "what": "@WebMvcTest 安全规则：401/403、角色隔离。",
+    "why": "防止订单 API 权限回归。",
+    "how": "MockMvc + mock JwtService/OrderService。",
+    "diagram": [
+      "  无 JWT─401  USER访问admin─403"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/service/AuthServiceTest.java": {
+    "what": "AuthService 单元测试（邮箱规范化、重复注册）。",
+    "why": "无 Spring 上下文快速验证。",
+    "how": "Mock UserRepository；BCrypt 真实编码一例。",
+    "diagram": [
+      "  register ──► hash + save"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/service/OrderServiceTest.java": {
+    "what": "OrderService.createOrder 单元测试。",
+    "why": "断言状态、金额、Outbox 行。",
+    "how": "Mock repos + ObjectMapper；ArgumentCaptor。",
+    "diagram": [
+      "  createOrder ──► PENDING_INVENTORY + outbox"
+    ]
+  },
+  "order-service/src/test/java/com/example/orderservice/service/PaymentResultServiceTest.java": {
+    "what": "PaymentResultService 状态迁移与幂等忽略测试。",
+    "why": "支付 listener 领域逻辑安全网。",
+    "how": "Mock OrderRepository；构造 pending 订单断言 status。",
+    "diagram": [
+      "  PAID / FAIL ──► status"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/PaymentServiceApplication.java": {
+    "what": "支付微服务 Spring Boot 启动类。",
+    "why": "无 HTTP，仅 Kafka 消费 inventory-reserved 并发布支付结果。",
+    "how": "标准 main 启动。",
+    "diagram": [
+      "  Boot ──► Kafka in/out only"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/config/KafkaConsumerErrorConfig.java": {
+    "what": "inventory-reserved 消费者重试与 DLT。",
+    "why": "与 inventory 侧 order-created 错误处理对称。",
+    "how": "Recoverer → inventory-reserved.DLT。",
+    "diagram": [
+      "  fail ──► retry ──► .DLT"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/config/KafkaTopicConfig.java": {
+    "what": "支付服务 Kafka Topic 声明。",
+    "why": "含 inventory-reserved 与 DLT、payment-*。",
+    "how": "@Bean NewTopic。",
+    "diagram": [
+      "  启动 ──► 创建 topics"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/entity/Payment.java": {
+    "what": "payment_db 中的支付记录 JPA 实体。",
+    "why": "每笔订单扣款尝试一条记录。",
+    "how": "UUID id、orderId、amount、PaymentStatus、时间戳。",
+    "diagram": [
+      "  Payment 行 / 订单"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/entity/PaymentStatus.java": {
+    "what": "支付状态 PROCESSING / COMPLETED / FAILED。",
+    "why": "Demo 立即根据金额规则设终态。",
+    "how": "字符串枚举列。",
+    "diagram": [
+      "  金额规则 ──► COMPLETED|FAILED"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/entity/ProcessedEvent.java": {
+    "what": "以 InventoryReserved 的 eventId 幂等。",
+    "why": "防止重复扣款。",
+    "how": "eventId PK + processedAt。",
+    "diagram": [
+      "  dup eventId ──skip"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/event/InventoryReservedEvent.java": {
+    "what": "inventory-reserved 入站 DTO。",
+    "why": "支付只在预占成功后启动（不消费 order-created）。",
+    "how": "Java record → PaymentService.processInventoryReserved。",
+    "diagram": [
+      "  inventory-reserved ──► pay"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/event/PaymentCompletedEvent.java": {
+    "what": "支付成功出站 Kafka DTO。",
+    "why": "广播给 order、inventory、notification。",
+    "how": "PaymentEventPublisher.publishCompleted。",
+    "diagram": [
+      "  pay OK ──► payment-completed"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/event/PaymentFailedEvent.java": {
+    "what": "支付失败出站 Kafka DTO。",
+    "why": "触发订单失败与库存释放。",
+    "how": "PaymentEventPublisher.publishFailed。",
+    "diagram": [
+      "  pay FAIL ──► payment-failed"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/messaging/InventoryReservedListener.java": {
+    "what": "订阅 inventory-reserved 的监听器。",
+    "why": "Saga 支付步入口。",
+    "how": "PaymentService.processInventoryReserved；KAFKA_FAIL 模拟失败。",
+    "diagram": [
+      "  inventory-reserved ──► PaymentService"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/messaging/KafkaTopics.java": {
+    "what": "支付服务 Topic 常量（含 DLT 名）。",
+    "why": "Listener 与 ErrorHandler 共用。",
+    "how": "静态 final 字符串。",
+    "diagram": [
+      "  topic 名字"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/messaging/PaymentEventPublisher.java": {
+    "what": "发布 payment-completed / payment-failed。",
+    "why": "多 consumer group 并行订阅。",
+    "how": "KafkaTemplate.send(orderId key) + 日志。",
+    "diagram": [
+      "  PaymentService ──► payment-*"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/repository/PaymentRepository.java": {
+    "what": "Payment 实体 JPA Repository。",
+    "why": "持久化扣款记录。",
+    "how": "JpaRepository<Payment, UUID>。",
+    "diagram": [
+      "  save Payment"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/repository/ProcessedEventRepository.java": {
+    "what": "processed_events JPA。",
+    "why": "existsById 幂等。",
+    "how": "JpaRepository<ProcessedEvent, UUID>。",
+    "diagram": [
+      "  eventId 账本"
+    ]
+  },
+  "payment-service/src/main/java/com/example/paymentservice/service/PaymentService.java": {
+    "what": "处理 InventoryReserved：幂等、落 Payment、按 demo 规则发结果。",
+    "why": "金额 ≤10000 成功，否则失败。",
+    "how": "@Transactional processInventoryReserved → save + publishCompleted/Failed。",
+    "diagram": [
+      "  amount≤10000 ──► COMPLETED",
+      "  else ──► FAILED"
+    ]
+  },
+  "payment-service/src/test/java/com/example/paymentservice/PaymentKafkaIntegrationTest.java": {
+    "what": "Testcontainers Kafka+Postgres 端到端支付流测试。",
+    "why": "验证消费、落库、发布 payment-completed。",
+    "how": "SpringBootTest + KafkaTemplate 发消息 + poll 断言。",
+    "diagram": [
+      "  TC Kafka ──► listener ──► DB ──► event"
+    ]
+  },
+  "payment-service/src/test/java/com/example/paymentservice/messaging/InventoryReservedListenerTest.java": {
+    "what": "InventoryReservedListener 委托与 KAFKA_FAIL 测试。",
+    "why": "文档化故障注入钩子。",
+    "how": "Mock PaymentService；KAFKA_FAIL 应抛错且不 process。",
+    "diagram": [
+      "  KAFKA_FAIL ──► exception"
+    ]
+  },
+  "payment-service/src/test/java/com/example/paymentservice/messaging/PaymentEventPublisherTest.java": {
+    "what": "PaymentEventPublisher 单元测试。",
+    "why": "publishCompleted 使用 orderId 作 key。",
+    "how": "Mock KafkaTemplate verify。",
+    "diagram": [
+      "  publishCompleted ──► send(key)"
+    ]
+  },
+  "payment-service/src/test/java/com/example/paymentservice/service/PaymentServiceTest.java": {
+    "what": "PaymentService 边界金额与幂等单元测试。",
+    "why": "10000.00 OK / 10000.01 FAIL 等。",
+    "how": "Mock repos/publisher + captors。",
+    "diagram": [
+      "  10000.00 OK │ 10000.01 FAIL"
+    ]
+  }
+}

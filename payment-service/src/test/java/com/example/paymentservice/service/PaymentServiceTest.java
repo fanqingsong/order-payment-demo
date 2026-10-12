@@ -1,9 +1,24 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · PaymentServiceTest.java                                    ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】PaymentService 边界金额与幂等单元测试。
+ * 【为什么】10000.00 OK / 10000.01 FAIL 等。
+ * 【怎么做】Mock repos/publisher + captors。
+ *
+ * 示意图（payment-service · 8081 · payment_db）：
+ *   10000.00 OK │ 10000.01 FAIL
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
 import com.example.paymentservice.entity.ProcessedEvent;
-import com.example.paymentservice.event.OrderCreatedEvent;
+import com.example.paymentservice.event.InventoryReservedEvent;
 import com.example.paymentservice.event.PaymentCompletedEvent;
 import com.example.paymentservice.event.PaymentFailedEvent;
 import com.example.paymentservice.messaging.PaymentEventPublisher;
@@ -44,9 +59,9 @@ class PaymentServiceTest {
         UUID paymentId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         PaymentService paymentService = paymentServiceWithGeneratedId(paymentId);
-        OrderCreatedEvent orderEvent = orderEvent(orderId, "10000.00");
+        InventoryReservedEvent inventoryEvent = inventoryEvent(orderId, "10000.00");
 
-        paymentService.processOrder(orderEvent);
+        paymentService.processInventoryReserved(inventoryEvent);
 
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository).save(paymentCaptor.capture());
@@ -69,9 +84,9 @@ class PaymentServiceTest {
         UUID paymentId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         PaymentService paymentService = paymentServiceWithGeneratedId(paymentId);
-        OrderCreatedEvent orderEvent = orderEvent(orderId, "10000.01");
+        InventoryReservedEvent inventoryEvent = inventoryEvent(orderId, "10000.01");
 
-        paymentService.processOrder(orderEvent);
+        paymentService.processInventoryReserved(inventoryEvent);
 
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository).save(paymentCaptor.capture());
@@ -94,11 +109,11 @@ class PaymentServiceTest {
         UUID paymentId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         PaymentService paymentService = paymentServiceWithGeneratedId(paymentId);
-        OrderCreatedEvent orderEvent = orderEvent(orderId, "99.99");
-        when(processedEventRepository.existsById(orderEvent.eventId())).thenReturn(false, true);
+        InventoryReservedEvent inventoryEvent = inventoryEvent(orderId, "99.99");
+        when(processedEventRepository.existsById(inventoryEvent.eventId())).thenReturn(false, true);
 
-        paymentService.processOrder(orderEvent);
-        paymentService.processOrder(orderEvent);
+        paymentService.processInventoryReserved(inventoryEvent);
+        paymentService.processInventoryReserved(inventoryEvent);
 
         verify(paymentRepository, times(1)).save(any(Payment.class));
         verify(processedEventRepository, times(1)).save(any(ProcessedEvent.class));
@@ -115,16 +130,19 @@ class PaymentServiceTest {
         return new PaymentService(paymentRepository, processedEventRepository, eventPublisher);
     }
 
-    private OrderCreatedEvent orderEvent(UUID orderId, String amount) {
-        return new OrderCreatedEvent(
+    private InventoryReservedEvent inventoryEvent(UUID orderId, String amount) {
+        return new InventoryReservedEvent(
                 UUID.randomUUID(),
-                "OrderCreated",
+                "InventoryReserved",
                 1,
                 Instant.now(),
                 orderId,
                 UUID.randomUUID(),
                 "Keyboard",
-                new BigDecimal(amount)
+                1,
+                new BigDecimal(amount),
+                UUID.randomUUID(),
+                UUID.randomUUID()
         );
     }
 }

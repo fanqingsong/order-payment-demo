@@ -4,6 +4,7 @@ server:
 spring:
   application:
     name: notification-service
+  # 无数据库：纯 Kafka 消费者 + 日志模拟发信
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

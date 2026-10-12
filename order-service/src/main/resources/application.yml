@@ -1,15 +1,18 @@
+# 订单服务 HTTP 端口（docker compose 中映射到宿主机）
 server:
   port: 8080
 
 spring:
   application:
     name: order-service
+  # PostgreSQL：订单、用户、outbox_events 均在此库（order_db）
   datasource:
     url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5432/order_db}
     username: ${ORDER_DB_USERNAME:postgres}
     password: ${ORDER_DB_PASSWORD:postgres}
   jpa:
     hibernate:
+      # validate：只校验 Flyway 迁移后的表结构，不自动改表
       ddl-auto: validate
     open-in-view: false
   flyway:
@@ -22,6 +25,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.UUIDDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
       properties:
+        # 不使用 Kafka 消息头里的类型信息，靠 default.type 或 @KafkaListener properties 指定
         "[spring.json.use.type.headers]": false
         "[spring.json.trusted.packages]": com.example.orderservice.event
     producer:
@@ -36,6 +40,9 @@ management:
       exposure:
         include: health,info
 
+# JWT：登录签发与 API 鉴权（生产环境务必更换 secret）
 jwt:
   secret: ${JWT_SECRET:change-this-local-development-secret-before-production-use}
   expiration-milliseconds: ${JWT_EXPIRATION_MILLISECONDS:3600000}
+
+# Outbox 定时发布（可选）：fixed-delay-ms 默认 1000；测试可设 outbox.publisher.enabled=false

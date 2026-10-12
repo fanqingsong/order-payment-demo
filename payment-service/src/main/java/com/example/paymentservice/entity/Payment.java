@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · Payment.java                                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】payment_db 中的支付记录 JPA 实体。
+ * 【为什么】每笔订单扣款尝试一条记录。
+ * 【怎么做】UUID id、orderId、amount、PaymentStatus、时间戳。
+ *
+ * 示意图（payment-service · 8081 · payment_db）：
+ *   Payment 行 / 订单
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.paymentservice.entity;
 
 import jakarta.persistence.Column;
@@ -13,6 +28,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * 支付记录，映射 {@code payments} 表（独立库 payment_db）。
+ * {@code orderId} 与订单服务的订单 ID 对应，跨服务仅通过 UUID 关联。
+ */
 @Entity
 @Table(name = "payments")
 public class Payment {

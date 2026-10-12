@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · SecurityConfig.java                                        ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】Spring Security 过滤器链与 JWT 无状态配置。
+ * 【为什么】保护 /api/orders；/api/auth 公开；管理员路由需 ROLE_ADMIN。
+ * 【怎么做】SecurityFilterChain：禁用 CSRF/session；JwtAuthenticationFilter 在 UsernamePasswordAuthenticationFilter 之前。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   Request ──► JWT Filter ──► 鉴权 ──► Controller
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.config;
 
 import com.example.orderservice.security.JwtAuthenticationFilter;
@@ -17,6 +32,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 
+/**
+ * Spring Security 配置：无状态 JWT、URL 授权规则、密码加密。
+ * <p>
+ * 请求流程：{@link JwtAuthenticationFilter} 解析 Bearer Token → 填充 SecurityContext →
+ * 控制器通过 {@code @AuthenticationPrincipal} 取当前用户。
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -27,7 +48,9 @@ public class SecurityConfig {
             AuthenticationProvider authenticationProvider
     ) throws Exception {
         return http
+                // REST API 通常关闭 CSRF；若用 Cookie 存 Token 则需另议
                 .csrf(csrf -> csrf.disable())
+                // 不使用 HttpSession 存登录态，完全依赖 JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) ->
@@ -40,10 +63,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/orders", "/api/orders/**").authenticated()
                         .anyRequest().denyAll())
                 .authenticationProvider(authenticationProvider)
+                // JWT 过滤器在 UsernamePasswordAuthenticationFilter 之前执行
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
+    /** 登录时校验邮箱+密码：从数据库加载 UserDetails 并比对 BCrypt 哈希。 */
     @Bean
     AuthenticationProvider authenticationProvider(UserDetailsService userDetailsService) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);

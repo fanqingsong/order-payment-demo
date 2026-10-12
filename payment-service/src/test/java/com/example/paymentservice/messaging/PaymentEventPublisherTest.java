@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · PaymentEventPublisherTest.java                             ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】PaymentEventPublisher 单元测试。
+ * 【为什么】publishCompleted 使用 orderId 作 key。
+ * 【怎么做】Mock KafkaTemplate verify。
+ *
+ * 示意图（payment-service · 8081 · payment_db）：
+ *   publishCompleted ──► send(key)
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.paymentservice.messaging;
 
 import com.example.paymentservice.event.PaymentCompletedEvent;

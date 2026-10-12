@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · OrderEventPublisherTest.java                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】OrderEventPublisher 单元测试。
+ * 【为什么】断言 Kafka message key 为 orderId。
+ * 【怎么做】Mock KafkaTemplate + verify send。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   publish ──verify──► send(key=orderId)
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.messaging;
 
 import com.example.orderservice.event.OrderCreatedEvent;
@@ -34,6 +49,7 @@ class OrderEventPublisherTest {
                 orderId,
                 UUID.randomUUID(),
                 "Keyboard",
+                1,
                 new BigDecimal("99.90")
         );
         CompletableFuture<SendResult<UUID, OrderCreatedEvent>> future =

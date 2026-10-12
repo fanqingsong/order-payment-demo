@@ -10,6 +10,11 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * 将 {@link OrderCreatedEvent} 写入 Kafka 主题 {@link KafkaTopics#ORDER_CREATED}。
+ * <p>
+ * 消息 key 使用 {@code orderId}：同一订单的相关消息会落在同一分区，便于保证顺序（单分区内）。
+ */
 @Component
 public class OrderEventPublisher {
 
@@ -21,10 +26,14 @@ public class OrderEventPublisher {
         this.kafkaTemplate = kafkaTemplate;
     }
 
+    /**
+     * 异步发送；返回 {@link CompletableFuture} 供 OutboxPublisher 等待确认。
+     */
     public CompletableFuture<SendResult<UUID, OrderCreatedEvent>> publishOrderCreated(OrderCreatedEvent event) {
         log.info("Publishing OrderCreatedEvent: eventId={}, orderId={}", event.eventId(), event.orderId());
         CompletableFuture<SendResult<UUID, OrderCreatedEvent>> future =
                 kafkaTemplate.send(KafkaTopics.ORDER_CREATED, event.orderId(), event);
+                
         future
                 .whenComplete((result, exception) -> {
                     if (exception == null) {

@@ -4,7 +4,12 @@ import { Observable } from 'rxjs';
 
 import { AuthService } from '@core/auth/auth.service';
 
-export type OrderStatus = 'PENDING_PAYMENT' | 'PAID' | 'PAYMENT_FAILED';
+export type OrderStatus =
+  | 'PENDING_INVENTORY'
+  | 'PENDING_PAYMENT'
+  | 'INVENTORY_FAILED'
+  | 'PAID'
+  | 'PAYMENT_FAILED';
 
 export interface Order {
   id: string;

@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · OrderSecurityTest.java                                     ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】@WebMvcTest 安全规则：401/403、角色隔离。
+ * 【为什么】防止订单 API 权限回归。
+ * 【怎么做】MockMvc + mock JwtService/OrderService。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   无 JWT─401  USER访问admin─403
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.security;
 
 import com.example.orderservice.config.SecurityConfig;

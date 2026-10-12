@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · JwtAuthenticationFilter.java                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】每请求解析 Authorization: Bearer 的过滤器。
+ * 【为什么】无状态 API 建立 Authentication。
+ * 【怎么做】OncePerRequestFilter：parseToken → 设置 SecurityContext。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   Bearer JWT ──► SecurityContext
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.security;
 
 import io.jsonwebtoken.Claims;
@@ -15,6 +30,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
+/**
+ * 每个 HTTP 请求执行一次：从 {@code Authorization: Bearer <token>} 解析 JWT，建立 Spring Security 身份。
+ * <p>
+ * 若无 Token 或解析失败，不中断请求链——由后续 {@code authorizeHttpRequests} 决定是否 401。
+ * 密码字段在 JWT 场景下留空字符串，因为认证已由 Token 完成。
+ */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 

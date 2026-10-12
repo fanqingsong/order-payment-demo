@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · OrderServiceTest.java                                      ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】OrderService.createOrder 单元测试。
+ * 【为什么】断言状态、金额、Outbox 行。
+ * 【怎么做】Mock repos + ObjectMapper；ArgumentCaptor。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   createOrder ──► PENDING_INVENTORY + outbox
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.service;
 
 import com.example.orderservice.dto.CreateOrderRequest;
@@ -37,7 +52,7 @@ class OrderServiceTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void createsOrderWithCalculatedTotalAndPendingPaymentStatus() {
+    void createsOrderWithCalculatedTotalAndPendingInventoryStatus() {
         OrderService orderService = new OrderService(orderRepository, outboxEventRepository, objectMapper);
         UUID userId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
@@ -64,12 +79,12 @@ class OrderServiceTest {
         assertThat(savedOrder.getQuantity()).isEqualTo(3);
         assertThat(savedOrder.getUnitPrice()).isEqualByComparingTo("49.95");
         assertThat(savedOrder.getTotalAmount()).isEqualByComparingTo("149.85");
-        assertThat(savedOrder.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(savedOrder.getStatus()).isEqualTo(OrderStatus.PENDING_INVENTORY);
         assertThat(savedOrder.getCreatedAt()).isNotNull();
         assertThat(savedOrder.getUpdatedAt()).isEqualTo(savedOrder.getCreatedAt());
 
         assertThat(response.totalAmount()).isEqualByComparingTo("149.85");
-        assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(response.status()).isEqualTo(OrderStatus.PENDING_INVENTORY);
 
         ArgumentCaptor<OutboxEvent> outboxCaptor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(outboxCaptor.capture());

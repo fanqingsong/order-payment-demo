@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · AuthServiceTest.java                                       ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】AuthService 单元测试（邮箱规范化、重复注册）。
+ * 【为什么】无 Spring 上下文快速验证。
+ * 【怎么做】Mock UserRepository；BCrypt 真实编码一例。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   register ──► hash + save
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.service;
 
 import com.example.orderservice.dto.RegisterRequest;

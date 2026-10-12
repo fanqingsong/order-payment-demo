@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · NotificationServiceTest.java                               ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】NotificationService 日志输出测试。
+ * 【为什么】回归 EMAIL SENT 文案。
+ * 【怎么做】OutputCapture + AssertJ。
+ *
+ * 示意图（notification-service · 8082 · 无库）：
+ *   service ──► 捕获日志
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.notificationservice.service;
 
 import org.junit.jupiter.api.Test;

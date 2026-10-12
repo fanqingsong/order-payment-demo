@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · OrderPersistenceIntegrationTest.java                       ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】订单持久化 + MockMvc + Testcontainers Postgres 集成测试。
+ * 【为什么】不启 Kafka 验证 HTTP、安全、Outbox 落库。
+ * 【怎么做】SpringBootTest；禁用 listener/outbox；@WithUser MockMvc 断言 DB。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   Postgres TC ──► MockMvc ──► assert DB
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice;
 
 import com.example.orderservice.dto.CreateOrderRequest;
@@ -97,7 +112,7 @@ class OrderPersistenceIntegrationTest {
         assertThat(retrieved.productName()).isEqualTo("Mechanical Keyboard");
         assertThat(retrieved.quantity()).isEqualTo(2);
         assertThat(retrieved.totalAmount()).isEqualByComparingTo("159.00");
-        assertThat(retrieved.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        assertThat(retrieved.status()).isEqualTo(OrderStatus.PENDING_INVENTORY);
         assertThat(outboxEvent.getAggregateId()).isEqualTo(created.id());
         assertThat(outboxEvent.getEventType()).isEqualTo("OrderCreated");
         assertThat(outboxEvent.getPayload()).contains("\"orderId\":\"" + created.id() + "\"");

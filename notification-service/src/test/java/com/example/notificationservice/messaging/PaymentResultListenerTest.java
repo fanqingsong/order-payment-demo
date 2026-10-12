@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · PaymentResultListenerTest.java                             ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】PaymentResultListener  wiring 测试。
+ * 【为什么】确保监听器调用 NotificationService。
+ * 【怎么做】Mock NotificationService + verify。
+ *
+ * 示意图（notification-service · 8082 · 无库）：
+ *   listener ──verify──► send*
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.notificationservice.messaging;
 
 import com.example.notificationservice.event.PaymentCompletedEvent;

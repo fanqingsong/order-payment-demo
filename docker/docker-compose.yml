@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:17
     container_name: order-payment-postgres
     environment:
       POSTGRES_USER: postgres
@@ -18,14 +18,14 @@ services:
     restart: unless-stopped
 
   kafka:
-    image: apache/kafka:4.1.0
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/apache/kafka:4.1.0
     container_name: order-payment-kafka
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
@@ -38,6 +38,101 @@ services:
       - "9092:9092"
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: ../order-service
+      dockerfile: Dockerfile
+    container_name: order-payment-order-service
+    environment:
+      ORDER_DB_URL: jdbc:postgresql://postgres:5432/order_db
+      ORDER_DB_USERNAME: postgres
+      ORDER_DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: change-this-local-development-secret-before-production-use
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: ../inventory-service
+      dockerfile: Dockerfile
+    container_name: order-payment-inventory-service
+    environment:
+      INVENTORY_DB_URL: jdbc:postgresql://postgres:5432/inventory_db
+      INVENTORY_DB_USERNAME: postgres
+      INVENTORY_DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: ../payment-service
+      dockerfile: Dockerfile
+    container_name: order-payment-payment-service
+    environment:
+      PAYMENT_DB_URL: jdbc:postgresql://postgres:5432/payment_db
+      PAYMENT_DB_USERNAME: postgres
+      PAYMENT_DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    container_name: order-payment-notification-service
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports:
+      - "8082:8082"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: order-payment-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - order-service
     restart: unless-stopped
 
 volumes:

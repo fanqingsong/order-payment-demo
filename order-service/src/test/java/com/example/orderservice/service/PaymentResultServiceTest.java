@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · PaymentResultServiceTest.java                              ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】PaymentResultService 状态迁移与幂等忽略测试。
+ * 【为什么】支付 listener 领域逻辑安全网。
+ * 【怎么做】Mock OrderRepository；构造 pending 订单断言 status。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   PAID / FAIL ──► status
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.service;
 
 import com.example.orderservice.entity.Order;

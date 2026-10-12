@@ -1,3 +1,18 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  源码导读 · JwtServiceTest.java                                        ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
+ * 【是什么】JWT 签发解析往返测试。
+ * 【为什么】claims 含 userId/email/role/过期。
+ * 【怎么做】测试密钥 Reflection 或 @TestPropertySource。
+ *
+ * 示意图（order-service · 8080 · order_db）：
+ *   sign ──► parse ──► assert claims
+ *
+ * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * (FILE_GUIDE_HEADER)
+ */
 package com.example.orderservice.security;
 
 import com.example.orderservice.entity.Role;
