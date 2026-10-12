@@ -8,9 +8,9 @@
  * 【怎么做】PENDING_INVENTORY、PENDING_PAYMENT、INVENTORY_FAILED、PAID、PAYMENT_FAILED。
  *
  * 示意图（order-service · 8080 · order_db）：
- *   见 docs/architecture.md 状态图
+ *   见 README.md 状态图
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * (FILE_GUIDE_HEADER)
  */
 package com.example.orderservice.entity;

@@ -23,7 +23,7 @@ HEADER_TEMPLATE = """\
  * 示意图（{service_label}）：
 {diagram_block}
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * ({marker})
  */
 """

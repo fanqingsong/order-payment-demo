@@ -1,6 +1,6 @@
 # 运行与运维
 
-架构说明见 [architecture.md](architecture.md)；源码入口见 [code-guide.md](code-guide.md)。
+架构说明见 [README.md](../README.md#架构与-saga)；源码入口见 [code-guide.md](code-guide.md)。
 
 ## 前置依赖
 
@@ -81,7 +81,7 @@ psql -h localhost -p 5432 -U postgres -d order_db
 4. 支付服务**仅**在 `inventory-reserved` 后扣款演示。
 5. 支付结果驱动库存确认/释放与订单终态。
 
-详细时序见 [architecture.md](architecture.md#推荐业务顺序先占库存再支付)。
+详细时序见 [README.md](../README.md#推荐业务顺序先占库存再支付)。
 
 ## Kafka：查看消息
 

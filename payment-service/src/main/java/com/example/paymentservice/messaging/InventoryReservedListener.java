@@ -10,7 +10,7 @@
  * 示意图（payment-service · 8081 · payment_db）：
  *   inventory-reserved ──► PaymentService
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * (FILE_GUIDE_HEADER)
  */
 package com.example.paymentservice.messaging;

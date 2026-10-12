@@ -11,7 +11,7 @@
  *   register ──► users表
  *   login ──► JWT
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * (FILE_GUIDE_HEADER)
  */
 package com.example.orderservice.service;

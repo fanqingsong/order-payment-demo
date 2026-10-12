@@ -347,7 +347,7 @@
     "why": "与 inventory/payment 事件对齐，支持乱序支付结果。",
     "how": "PENDING_INVENTORY、PENDING_PAYMENT、INVENTORY_FAILED、PAID、PAYMENT_FAILED。",
     "diagram": [
-      "  见 docs/architecture.md 状态图"
+      "  见 README.md 状态图"
     ]
   },
   "order-service/src/main/java/com/example/orderservice/entity/OutboxEvent.java": {

@@ -10,7 +10,7 @@
  * 示意图（order-service · 8080 · order_db）：
  *   无 JWT─401  USER访问admin─403
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * (FILE_GUIDE_HEADER)
  */
 package com.example.orderservice.security;

@@ -1,6 +1,6 @@
 # 源码导读
 
-配合各服务 **`src/main` 内中文注释** 与 `application.yml` 阅读。架构与 Saga 序列图见 [architecture.md](architecture.md)，不要与本文重复展开。
+配合各服务 **`src/main` 内中文注释** 与 `application.yml` 阅读。各服务边界与 Kafka 见对应目录 **README.md**；跨服务序列图见 [README.md](../README.md#架构与-saga)。不要与本文重复展开类级导读。
 
 ## 端到端：类与 Topic 对照
 
@@ -46,7 +46,7 @@ POST /api/orders
 5. `event/OrderCreatedEvent.java`
 6. `messaging/OutboxPublisher.java`、`OrderEventPublisher.java`、`KafkaTopics.java`、`KafkaTopicConfig.java`
 
-Outbox 时序图见 [architecture.md#事务性-outbox下单](architecture.md#事务性-outbox下单) 与 [runbook.md#outbox-表](runbook.md#outbox-表)。
+Outbox 说明见 [README.md#事务性-outbox下单](../README.md#事务性-outbox下单) 与 [runbook.md#outbox-表](runbook.md#outbox-表)。
 
 ### 4. 库存（inventory-service）
 

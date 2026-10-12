@@ -10,7 +10,7 @@
  * 示意图（inventory-service · 8083 · inventory_db）：
  *   消息 ──X──► 重试(3) ──► order-created.DLT
  *
- * 详见仓库 docs/architecture.md · docs/code-guide.md
+ * 详见仓库 README.md · docs/code-guide.md
  * (FILE_GUIDE_HEADER)
  */
 package com.example.inventoryservice.config;

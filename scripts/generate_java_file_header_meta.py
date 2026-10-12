@@ -189,7 +189,7 @@ add("order-service/src/main/java/com/example/orderservice/entity/Order.java",
 add("order-service/src/main/java/com/example/orderservice/entity/OrderStatus.java",
     "订单生命周期枚举。", "与 inventory/payment 事件对齐，支持乱序支付结果。",
     "PENDING_INVENTORY、PENDING_PAYMENT、INVENTORY_FAILED、PAID、PAYMENT_FAILED。",
-    ["  见 docs/architecture.md 状态图"])
+    ["  见 README.md 状态图"])
 add("order-service/src/main/java/com/example/orderservice/entity/OutboxEvent.java",
     "事务性 Outbox 表行：待发 Kafka 的 JSON 载荷。", "下单与发 order-created 解耦，保证库与消息最终一致。",
     "含 eventType、payload、OutboxStatus；markPublished() 更新状态。",
